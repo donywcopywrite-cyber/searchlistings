@@ -1,34 +1,42 @@
 "use client";
 
-import { useCallback } from "react";
-import { ChatKitPanel, type FactAction } from "@/components/ChatKitPanel";
-import { useColorScheme } from "@/hooks/useColorScheme";
+import { useEffect } from "react";
+import { ChatKit, useChatKit } from "@openai/chatkit-react";
 
-export default function App() {
-  const { scheme, setScheme } = useColorScheme();
+export default function ChatPage() {
+  const { control } = useChatKit({
+    api: {
+      async getClientSecret(existing) {
+        // mark as used to satisfy eslint rule
+        if (existing) {
+          // no-op: could refresh the token here if you implement refresh
+        }
 
-  const handleWidgetAction = useCallback(async (action: FactAction) => {
-    if (process.env.NODE_ENV !== "production") {
-      console.info("[ChatKitPanel] widget action", action);
-    }
-  }, []);
+        const makeDeviceId = () => {
+          const stored = localStorage.getItem("deviceId");
+          if (stored) return stored;
+          const d = crypto.randomUUID();
+          localStorage.setItem("deviceId", d);
+          return d;
+        };
 
-  const handleResponseEnd = useCallback(() => {
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("[ChatKitPanel] response end");
-    }
-  }, []);
+        const deviceId =
+          typeof window !== "undefined" ? makeDeviceId() : "server";
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-end bg-slate-100 dark:bg-slate-950">
-      <div className="mx-auto w-full max-w-5xl">
-        <ChatKitPanel
-          theme={scheme}
-          onWidgetAction={handleWidgetAction}
-          onResponseEnd={handleResponseEnd}
-          onThemeRequest={setScheme}
-        />
-      </div>
-    </main>
-  );
+        const res = await fetch("/api/chatkit/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceId }),
+        });
+
+        if (!res.ok) throw new Error(await res.text());
+        const { client_secret } = (await res.json()) as { client_secret: string };
+        return client_secret;
+      },
+    },
+  });
+
+  useEffect(() => {}, []);
+
+  return <ChatKit control={control} />;
 }
